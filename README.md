@@ -16,7 +16,7 @@ cd met-harvester-diagnostics
 python3 -m venv .venv
 source .venv/bin/activate
 pip install -r requirements.txt -r requirements-dev.txt   # requests, pydantic, rdflib; pytest
-python -m pytest diagnostics/test_server.py               # 3 passed, offline
+python -m pytest diagnostics/test_server.py               # 4 passed, offline
 
 python diagnostics/server.py --cache data/met/objects
 ```
@@ -39,6 +39,14 @@ objects, roughly seven hours at 20 req/s, and it is safe to Stop and Start again
 request, 404s are marked `<objectID>.missing` and never retried, and a department finished on an
 earlier run is skipped unless *redo finished departments* is ticked. Failed ids are listed with
 their error, including any record the model refuses, and logged to `data/met/harvest_failures.jsonl`.
+
+Two options make the harvest rely on the live API instead of the cache. *Refetch from live API*
+ignores every cached copy and `.missing` marker, fetches each id again and overwrites the file on
+disk (a record the Met no longer serves loses its stale copy; one it serves again loses its
+marker). *Updated since* passes a date as `metadataDate` to the listing call, so the Met returns
+only objects changed on or after it, and refetches those; a since-run is partial, so it never marks
+a department done. Both imply *redo*. Use them to see what the API serves now rather than what was
+on disk when it was first harvested; the Live API tab does the same for a single id.
 
 **Objects** — browse the cache as an image grid; search title, object name, culture, medium, artist,
 accession number, period, classification, department or id; filter to one department; filter to
@@ -70,6 +78,7 @@ staging (filled fields that produced no triple).
 | Workers | one thread | 1–16 threads behind one shared rate limiter |
 | 404s | counted as failed, retried every run | written as `<objectID>.missing`, never retried |
 | Resume | rerun re-reads everything | `data/met/harvest_state.json` records finished departments; they are skipped unless redone |
+| Live API | one id at a time, in the Live API tab | also *refetch from live API* (cache ignored and overwritten) and *updated since* (`metadataDate`) for whole departments |
 | Failures | first 200 shown in the page | same, plus every one appended to `data/met/harvest_failures.jsonl` |
 | Id listings | not kept | saved to `data/met/ids/<departmentId>.json` so the id universe of a run is on disk |
 | Index | whole records in memory | a small summary per object (grid fields, a 58-bit presence mask, AAT terms, search text); the full record is read from disk when opened, so ~480k objects fit |
@@ -112,5 +121,5 @@ python -m pytest diagnostics/test_server.py
 ```
 
 Offline: the Met API is mocked with two departments, one cached record, one new record and one 404,
-and the test runs a full harvest, a resumed harvest, a redo with a limit, a failing listing, and
-every read endpoint.
+and the tests run a full harvest, a resumed harvest, a redo with a limit, a failing listing, a
+refetch from the live API over a stale cache, an updated-since run, and every read endpoint.
