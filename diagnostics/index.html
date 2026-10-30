@@ -1,0 +1,338 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Met harvest diagnostics</title>
+<style>
+:root{--stone:#ECEBE6;--stone-2:#DEDCD4;--ink:#1C2024;--ink-2:#5B6168;--ink-3:#A3A7AB;--blue:#2554A8;--absent:#D8D6CF;--white:#F9F8F5;--warn:#9A3B1E;
+  font-family:"Source Sans 3",system-ui,sans-serif;font-size:15px;line-height:1.45;color:var(--ink);background:var(--stone)}
+*{box-sizing:border-box} body{margin:0} a{color:var(--blue)} button,input,select{font:inherit}
+:focus-visible{outline:2px solid var(--blue);outline-offset:2px}
+header{position:sticky;top:0;z-index:5;background:var(--stone);border-bottom:1px solid var(--stone-2);display:flex;flex-wrap:wrap;gap:.5rem 1.25rem;align-items:center;padding:.6rem 1.25rem}
+h1{font-size:1.05rem;font-weight:600;margin:0 auto 0 0}
+.tabs button{background:none;border:0;padding:.3rem .7rem;border-radius:3px;cursor:pointer;color:var(--ink-2)}
+.tabs button[aria-selected=true]{background:var(--ink);color:var(--white)}
+main{padding:1.25rem;max-width:1500px} section[hidden]{display:none}
+h2{font-size:1.15rem;font-weight:600;margin:0 0 .6rem} h3{font-size:1rem;font-weight:600;margin:1.2rem 0 .4rem}
+p.note{color:var(--ink-2);max-width:75ch;margin:.2rem 0 .8rem}
+button.act{background:var(--white);border:1px solid var(--ink-3);border-radius:3px;padding:.3rem .8rem;cursor:pointer}
+button.act.primary{background:var(--ink);color:var(--white);border-color:var(--ink)}
+button.act.small{padding:.1rem .5rem;font-size:.85rem}
+input[type=text],input[type=number],select{padding:.3rem .5rem;border:1px solid var(--ink-3);border-radius:3px;background:var(--white)}
+.row{display:flex;flex-wrap:wrap;gap:.6rem;align-items:center;margin:.4rem 0}
+.bar{height:10px;background:var(--absent);position:relative;min-width:12rem;flex:1}
+.bar i{position:absolute;left:0;top:0;bottom:0;background:var(--blue)}
+.bar.mini{min-width:6rem;height:8px;display:inline-block;vertical-align:middle;width:6rem;flex:none}
+.kv{display:grid;grid-template-columns:auto 1fr;gap:.15rem 1rem;font-variant-numeric:tabular-nums;margin:.6rem 0}
+.kv dt{color:var(--ink-2)} .kv dd{margin:0}
+.kv.wide{grid-template-columns:repeat(8,auto);justify-content:start;gap:.15rem 1.5rem}
+table{border-collapse:collapse;width:100%;font-size:.93rem} th,td{text-align:left;padding:.25rem .5rem;border-bottom:1px solid var(--stone-2);vertical-align:top}
+th{color:var(--ink-2);font-weight:600} td.n,th.n{text-align:right;font-variant-numeric:tabular-nums}
+.warn{color:var(--warn)} .ok{color:var(--blue)} .dim{color:var(--ink-2)}
+#grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(150px,1fr));gap:3px}
+.tile{position:relative;aspect-ratio:1;background:var(--stone-2);border:0;padding:0;cursor:pointer;overflow:hidden}
+.tile img{width:100%;height:100%;object-fit:cover;display:block}
+.tile .cap{position:absolute;left:0;right:0;bottom:0;padding:.35rem .45rem;background:linear-gradient(transparent,rgba(28,32,36,.85));color:var(--white);font-size:.78rem;text-align:left;line-height:1.2}
+.tile .noimg{position:absolute;inset:0;display:grid;place-items:center;padding:.5rem;font-size:.8rem;color:var(--ink-2);text-align:center}
+#detail,#livedetail{display:grid;grid-template-columns:1fr 1fr;gap:1.25rem} @media (max-width:900px){#detail,#livedetail{grid-template-columns:1fr}}
+pre{background:var(--white);border:1px solid var(--stone-2);padding:.75rem;overflow:auto;max-height:70vh;font-size:.82rem;line-height:1.35;margin:0}
+.strip{display:grid;grid-template-columns:repeat(auto-fill,minmax(9px,1fr));gap:2px;margin:.3rem 0 .8rem} .strip i{display:block;height:9px;background:var(--absent)} .strip i.on{background:var(--blue)}
+.chips{display:flex;flex-wrap:wrap;gap:.3rem} .chips span{background:var(--white);border:1px solid var(--stone-2);border-radius:3px;padding:.05rem .45rem;font-size:.85rem}
+.chips span.miss{color:var(--warn);border-color:var(--warn)}
+.cols{display:grid;grid-template-columns:repeat(auto-fit,minmax(280px,1fr));gap:1.25rem}
+.pager{display:flex;gap:.5rem;align-items:center;margin:.6rem 0;color:var(--ink-2)}
+#depts td:first-child{white-space:nowrap}
+.scroll{overflow-x:auto;max-width:100%}
+table.matrix{width:auto;font-size:.8rem} table.matrix th{position:sticky;top:0;background:var(--stone)}
+table.matrix td{padding:0;border:1px solid var(--stone);min-width:18px;height:18px}
+table.matrix td.lab{padding:.1rem .4rem;white-space:nowrap;background:var(--stone);position:sticky;left:0}
+table.matrix th.rot{height:9rem;vertical-align:bottom;padding:0;min-width:18px}
+table.matrix th.rot div{writing-mode:vertical-rl;transform:rotate(180deg);font-weight:400;font-size:.72rem;white-space:nowrap;padding:.2rem 0}
+</style>
+</head>
+<body>
+<header>
+  <h1>Met harvest diagnostics · all departments</h1>
+  <nav class="tabs" role="tablist">
+    <button role="tab" aria-selected="true" data-tab="harvest">Harvest</button>
+    <button role="tab" aria-selected="false" data-tab="objects">Objects</button>
+    <button role="tab" aria-selected="false" data-tab="coverage">Coverage</button>
+    <button role="tab" aria-selected="false" data-tab="perseus">Perseus links</button>
+    <button role="tab" aria-selected="false" data-tab="live">Live API</button>
+  </nav>
+  <span id="cachecount"></span>
+</header>
+<main>
+
+<section id="harvest">
+  <h2>Run the harvester</h2>
+  <p class="note">Lists every curatorial department from <code>/departments</code>, then every object id per department from <code>/objects?departmentIds=N</code>. Records already on disk are read from the cache and only new ids hit the API, through one shared rate limiter — unless <em>refetch from live API</em> is ticked, in which case every id is fetched again and the cache is overwritten; <em>updated since</em> asks the Met only for objects changed since a date and refetches those. Ids the Met answers with 404 are marked <code>.missing</code> and never asked for again, so Stop and Start again resumes. Tick nothing to harvest everything (about 480k objects, roughly seven hours at 20 requests/s). Start with a small limit per department to see what comes back.</p>
+  <div class="row">
+    <label>Limit per department <input id="limit" type="number" placeholder="all" style="width:6rem"></label>
+    <label>Workers <input id="workers" type="number" value="4" min="1" max="16" style="width:4rem"></label>
+    <label>Requests/s <input id="rate" type="number" value="20" min="1" max="80" style="width:4.5rem"></label>
+    <label title="Departments finished on an earlier run are skipped unless this is ticked"><input id="redo" type="checkbox"> redo finished departments</label>
+    <label title="Ignore the cache: fetch every id from the live API again and overwrite the files on disk"><input id="refreshlive" type="checkbox"> refetch from live API</label>
+    <label title="Only objects the Met has updated on or after this date (metadataDate); those are refetched">updated since <input id="since" type="date" style="width:10rem"></label>
+    <button class="act primary" id="start">Start</button>
+    <button class="act" id="pause">Pause</button>
+    <button class="act" id="stop">Stop</button>
+    <button class="act" id="refresh">Re-index cache</button>
+  </div>
+  <div class="row"><div class="bar"><i id="pbar"></i></div><span id="ptext"></span></div>
+  <dl class="kv wide" id="hstats"></dl>
+  <h3>Departments <button class="act small" id="selall">all</button> <button class="act small" id="selnone">none</button> <span class="dim" id="deptnote"></span></h3>
+  <table id="depts"><thead><tr><th></th><th>Id</th><th>Department</th><th>Status</th><th class="n">In cache</th><th class="n">Listed</th><th class="n">Done</th><th class="n">Fetched</th><th class="n">From cache</th><th class="n">Missing</th><th class="n">Failed</th><th class="n">Invalid</th><th>Progress</th></tr></thead><tbody></tbody></table>
+  <h3>Failed ids <span class="dim">(first 200; the full log is <code>harvest_failures.jsonl</code> next to the cache)</span></h3>
+  <table id="failed"><thead><tr><th>objectID</th><th>Department</th><th>Error</th></tr></thead><tbody></tbody></table>
+</section>
+
+<section id="objects" hidden>
+  <div class="row">
+    <input id="q" type="text" placeholder="Search title, culture, medium, artist, accession, id…" style="min-width:18rem">
+    <label>Department <select id="odept"><option value="">all</option></select></label>
+    <label>Missing field <select id="missing"><option value="">—</option></select></label>
+    <label><input id="imgonly" type="checkbox"> with image</label>
+  </div>
+  <div class="pager"><button class="act" id="prev">‹</button><span id="pinfo"></span><button class="act" id="next">›</button></div>
+  <div id="grid"></div>
+  <div id="detailwrap" hidden>
+    <div class="row" style="margin-top:1.5rem"><h2 id="dtitle" style="margin:0"></h2><button class="act" id="dlive">Compare with live API</button><button class="act" id="dclose">Close</button></div>
+    <p class="note" id="dsub"></p>
+    <div class="strip" id="dstrip"></div>
+    <div class="cols">
+      <div><h3>AAT lookups</h3><table id="daat"><tbody></tbody></table></div>
+      <div><h3>Staged</h3><dl class="kv" id="dnodes"></dl><div class="chips" id="dprops"></div></div>
+    </div>
+    <div id="detail">
+      <div><h3>API record (raw)</h3><pre id="draw"></pre></div>
+      <div><h3>Staging triples (Turtle)</h3><pre id="dttl"></pre></div>
+    </div>
+  </div>
+</section>
+
+<section id="coverage" hidden>
+  <h2>Field coverage across the cache</h2>
+  <p class="note">Share of cached objects with each API field filled, for one department or for all. Then how many objects' culture, object name, classification and medium terms resolve to an AAT URI through <code>aat_mappings</code>, and the most frequent terms that don't — candidates for the mapping tables. The matrix at the bottom compares every department on every documented field.</p>
+  <div class="row"><label>Department <select id="cdept"><option value="">all</option></select></label><button class="act primary" id="covload">Compute</button><span class="dim" id="covinfo"></span></div>
+  <div id="covundoc" class="chips" style="margin:.4rem 0"></div>
+  <div id="covfields" class="kv" style="grid-template-columns:auto 1fr auto;max-width:60rem"></div>
+  <div id="covaat" class="cols"></div>
+  <h3>Department comparison <button class="act small" id="matload">Compute matrix</button></h3>
+  <p class="note">One row per department, most objects first; one column per documented field; darker is more often filled. Hover a cell for the number. Then per department: mean fill, fields never and always filled, undocumented keys the API served, and AAT resolution.</p>
+  <div class="scroll" id="matrix"></div>
+  <table id="mattable" style="margin-top:1rem"><thead><tr><th>Department</th><th class="n">Objects</th><th class="n">Mean fill</th><th>Never filled</th><th>Always filled</th><th>Undocumented keys</th><th class="n">culture → AAT</th><th class="n">objectName → AAT</th><th class="n">classification → AAT</th><th class="n">medium → AAT</th></tr></thead><tbody></tbody></table>
+</section>
+
+<section id="perseus" hidden>
+  <h2>Perseus accession matches</h2>
+  <p class="note">Compares Perseus objects whose institution is the Met (from the Perseus staging TTL) against accession numbers in the cache, with whitespace and case ignored, the same rule <code>met_entity_resolution.py</code> uses. Matches are also counted per department, which shows whether Perseus's Met objects all sit in Greek and Roman Art or spill into others.</p>
+  <div class="row"><input id="ppath" type="text" value="data/staging/perseus_objects.ttl" style="min-width:24rem"><button class="act primary" id="pload">Check</button></div>
+  <dl class="kv" id="pstats"></dl>
+  <div class="cols">
+    <div><h3>Matches by department</h3><table id="pdept"><tbody></tbody></table></div>
+    <div><h3>Sample matches</h3><table id="pmatch"><tbody></tbody></table></div>
+    <div><h3>Unmatched Perseus accessions</h3><div class="chips" id="punm"></div></div>
+  </div>
+</section>
+
+<section id="live" hidden>
+  <h2>Live API against the harvester</h2>
+  <p class="note">Calls <code>collectionapi.metmuseum.org/…/objects/{id}</code> directly, with plain <code>requests</code> and no cache, then compares that response with what the harvester holds for the same id: the cached JSON, the <code>MetObject</code> view, and the staged Turtle. Works for any id in any department, cached or not.</p>
+  <div class="row"><label>Object id <input id="liveid" type="number" style="width:8rem"></label><button class="act primary" id="livego">Fetch and compare</button><span id="livestatus"></span></div>
+  <div id="liveout" hidden>
+    <div class="cols">
+      <div><h3>Cache vs live API</h3><p class="note" id="livecache"></p><table id="livediff"><thead><tr><th>Field</th><th>Live API</th><th>Cached</th></tr></thead><tbody></tbody></table></div>
+      <div><h3>Live API vs model</h3><p class="note" id="livemodelnote"></p><table id="livemodel"><thead><tr><th>Field</th><th>API</th><th>Model</th></tr></thead><tbody></tbody></table></div>
+      <div><h3>Model vs staging</h3><p class="note" id="liveunstagednote"></p><div class="chips" id="liveunstaged"></div></div>
+    </div>
+    <div id="livedetail" style="margin-top:1rem">
+      <div><h3>Live API response</h3><pre id="liveraw"></pre></div>
+      <div><h3>Staged from it</h3><pre id="livettl"></pre></div>
+    </div>
+  </div>
+</section>
+</main>
+
+<script>
+const $ = s => document.querySelector(s);
+const esc = s => String(s ?? "").replace(/[&<>"]/g, c => ({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;"}[c]));
+const api = (p, opt) => fetch(p, opt).then(r => r.json());
+const n = x => (x ?? 0).toLocaleString();
+const pct = (a, b) => b ? (a / b * 100).toFixed(0) + "%" : "–";
+const FIELDS = ("objectID isHighlight accessionNumber accessionYear isPublicDomain primaryImage primaryImageSmall additionalImages constituents department objectName title culture period dynasty reign portfolio artistRole artistPrefix artistDisplayName artistDisplayBio artistSuffix artistAlphaSort artistNationality artistBeginDate artistEndDate artistGender artistWikidata_URL artistULAN_URL objectDate objectBeginDate objectEndDate medium dimensions dimensionsParsed measurements creditLine geographyType city state county country region subregion locale locus excavation river classification rightsAndReproduction linkResource metadataDate repository objectURL tags objectWikidata_URL isTimelineWork GalleryNumber").split(" ");
+$("#missing").innerHTML += FIELDS.map(f => `<option>${f}</option>`).join("");
+
+document.querySelectorAll(".tabs button").forEach(b => b.onclick = () => {
+  document.querySelectorAll(".tabs button").forEach(x => x.setAttribute("aria-selected", x === b));
+  document.querySelectorAll("main > section").forEach(s => s.hidden = s.id !== b.dataset.tab);
+  if (b.dataset.tab === "objects") loadObjects();
+});
+
+// ---- departments ---------------------------------------------------------
+let DEPTS = [];
+async function loadDepartments() {
+  const d = await api("/api/departments");
+  if (d.error) { $("#deptnote").textContent = d.error; $("#deptnote").className = "warn"; }
+  DEPTS = d.departments || [];
+  $("#depts tbody").innerHTML = DEPTS.map(x => `<tr data-id="${x.departmentId}">
+    <td><input type="checkbox" class="dsel" value="${x.departmentId}"></td><td>${x.departmentId}</td><td>${esc(x.displayName)}</td>
+    <td class="st dim">${x.done ? `finished ${esc(x.done.when.slice(0,10))} (${n(x.done.total)} ids)` : ""}</td>
+    <td class="n ic">${n(x.in_cache)}</td><td class="n t"></td><td class="n d"></td><td class="n f"></td><td class="n c"></td><td class="n m"></td><td class="n x"></td><td class="n i"></td>
+    <td><div class="bar mini"><i></i></div></td></tr>`).join("");
+  $("#deptnote").textContent = DEPTS.length ? `${DEPTS.length} departments from the Met API` : "";
+}
+$("#selall").onclick = () => document.querySelectorAll(".dsel").forEach(c => c.checked = true);
+$("#selnone").onclick = () => document.querySelectorAll(".dsel").forEach(c => c.checked = false);
+function fillDeptSelects(list) {
+  for (const sel of ["#odept", "#cdept"]) {
+    const cur = $(sel).value;
+    $(sel).innerHTML = `<option value="">all (${n(list.reduce((a, x) => a + x.objects, 0))})</option>` +
+      list.map(x => `<option value="${esc(x.department)}">${esc(x.department)} (${n(x.objects)})</option>`).join("");
+    $(sel).value = cur;
+  }
+}
+
+// ---- harvest -------------------------------------------------------------
+let lastDeptKey = "";
+async function status() {
+  const s = await api("/api/status");
+  $("#cachecount").textContent = `${n(s.in_cache)} records in ${s.cache_dir}` + (s.indexing ? ` — indexing… ${n(s.indexed_files)} files read` : "");
+  const p = s.total ? s.done / s.total * 100 : 0;
+  $("#pbar").style.width = p + "%";
+  $("#ptext").textContent = s.running ? `${s.paused ? "Paused" : "Running"} ${n(s.done)} / ${n(s.total)} listed so far` : s.total ? `Finished ${n(s.done)} / ${n(s.total)}` : "Idle";
+  const el = s.started ? ((s.finished || Date.now()/1000) - s.started) : 0;
+  $("#hstats").innerHTML = `<dt>Fetched from API</dt><dd>${n(s.fetched)}</dd><dt>Read from cache</dt><dd>${n(s.cached)}</dd><dt>Missing (404)</dt><dd>${n(s.missing)}</dd><dt>Failed</dt><dd class="${s.failed ? "warn" : ""}">${n(s.failed)}</dd><dt>Model rejected</dt><dd class="${s.invalid ? "warn" : ""}">${n(s.invalid)}</dd><dt>Rate</dt><dd>${el ? (s.done/el).toFixed(1) : "–"} obj/s</dd><dt>Workers</dt><dd>${s.workers || "–"} @ ${s.rate || "–"} req/s</dd><dt>Source</dt><dd>${s.refresh ? (s.since ? `live API, updated since ${s.since}` : "live API, cache ignored") : "cache, then API"}</dd>${s.error ? `<dt class="warn">Error</dt><dd class="warn">${esc(s.error)}</dd>` : ""}`;
+  $("#failed tbody").innerHTML = s.skipped.map(x => `<tr><td>${x.objectID}</td><td>${esc(x.department)}</td><td>${esc(x.error)}</td></tr>`).join("") || `<tr><td colspan=3 class="dim">none</td></tr>`;
+  $("#pause").textContent = s.paused ? "Resume" : "Pause";
+  for (const r of s.departments || []) {
+    const tr = document.querySelector(`#depts tr[data-id="${r.departmentId}"]`);
+    if (!tr) continue;
+    tr.querySelector(".st").textContent = r.status; tr.querySelector(".st").className = "st " + (/failed|stopped/.test(r.status) ? "warn" : r.status === "done" ? "ok" : "dim");
+    for (const [k, c] of [["total","t"],["done","d"],["fetched","f"],["cached","c"],["missing","m"],["failed","x"],["invalid","i"]]) tr.querySelector("." + c).textContent = r.total || r.done ? n(r[k]) : "";
+    tr.querySelector(".bar i").style.width = (r.total ? r.done / r.total * 100 : 0) + "%";
+  }
+  const key = JSON.stringify(s.cache_departments);
+  if (key !== lastDeptKey) {
+    lastDeptKey = key; fillDeptSelects(s.cache_departments);
+    const by = Object.fromEntries(s.cache_departments.map(x => [x.department, x.objects]));
+    document.querySelectorAll("#depts tr[data-id]").forEach(tr => { const name = DEPTS.find(x => x.departmentId == tr.dataset.id)?.displayName; tr.querySelector(".ic").textContent = n(by[name] || 0); });
+  }
+}
+$("#start").onclick = () => {
+  const ids = [...document.querySelectorAll(".dsel:checked")].map(c => c.value).join(",");
+  const p = new URLSearchParams({departments: ids, limit: $("#limit").value, workers: $("#workers").value, rate: $("#rate").value, redo: $("#redo").checked ? 1 : "", refresh: $("#refreshlive").checked ? 1 : "", since: $("#since").value});
+  api("/api/harvest?" + p, {method:"POST"}).then(r => { if (!r.started) alert(r.error || "A harvest is already running."); status(); });
+};
+$("#pause").onclick = () => api("/api/pause", {method:"POST"}).then(status);
+$("#stop").onclick = () => api("/api/stop", {method:"POST"}).then(status);
+$("#refresh").onclick = () => api("/api/refresh", {method:"POST"}).then(status);
+loadDepartments().then(status);
+setInterval(status, 1500);
+
+// ---- objects -------------------------------------------------------------
+let offset = 0; const PAGE = 60;
+async function loadObjects() {
+  const p = new URLSearchParams({offset, limit: PAGE, q: $("#q").value, department: $("#odept").value, missing: $("#missing").value, images: $("#imgonly").checked ? 1 : ""});
+  const d = await api("/api/objects?" + p);
+  $("#pinfo").textContent = d.total ? `${offset + 1}–${Math.min(offset + PAGE, d.total)} of ${n(d.total)}` : "no objects";
+  $("#grid").innerHTML = d.items.map(r => `<button class="tile" data-id="${r.objectID}" aria-label="${esc(r.title || r.objectID)}" title="${esc(r.department)}">
+    ${r.primaryImageSmall ? `<img src="${esc(r.primaryImageSmall)}" loading="lazy" alt="">` : `<div class="noimg">${esc(r.objectName || "no image")}<br>${esc(r.accessionNumber || "")}</div>`}
+    <div class="cap">${esc(r.title || r.objectName || "")}<br>${esc([r.culture, r.objectDate].filter(Boolean).join(", "))}</div></button>`).join("");
+}
+let t; $("#q").oninput = () => { clearTimeout(t); t = setTimeout(() => { offset = 0; loadObjects(); }, 200); };
+$("#missing").onchange = $("#imgonly").onchange = $("#odept").onchange = () => { offset = 0; loadObjects(); };
+$("#prev").onclick = () => { offset = Math.max(0, offset - PAGE); loadObjects(); };
+$("#next").onclick = () => { offset += PAGE; loadObjects(); };
+$("#grid").onclick = e => { const b = e.target.closest(".tile"); if (b) openDetail(+b.dataset.id); };
+$("#dclose").onclick = () => $("#detailwrap").hidden = true;
+
+async function openDetail(id) {
+  const d = await api("/api/object/" + id);
+  const r = d.raw;
+  $("#detailwrap").hidden = false;
+  $("#dtitle").textContent = `${r.title || r.objectName || "Untitled"} · ${r.objectID}`;
+  $("#dlive").onclick = () => liveCompare(r.objectID);
+  $("#dsub").textContent = d.error || `${[r.department, r.culture, r.period, r.objectDate, r.accessionNumber].filter(Boolean).join(" · ")}`;
+  const filled = FIELDS.filter(f => d.fields?.[f]);
+  $("#dstrip").innerHTML = FIELDS.map(f => `<i class="${d.fields?.[f] ? "on" : ""}" title="${f}"></i>`).join("");
+  $("#daat tbody").innerHTML = (d.aat || []).map(a => `<tr><td>${a.field}</td><td>${esc(a.term)}</td><td>${a.uri ? `<a class="ok" href="${a.uri}" target="_blank" rel="noopener">${a.uri.split("/").pop()}</a>` : `<span class="warn">no mapping</span>`}</td></tr>`).join("") || "<tr><td class='dim'>—</td></tr>";
+  $("#dnodes").innerHTML = d.nodes ? `<dt>Triples</dt><dd>${d.triples}</dd><dt>Fields filled</dt><dd>${filled.length} / ${FIELDS.length}</dd><dt>Image nodes</dt><dd>${d.nodes.images}</dd><dt>Measurement nodes</dt><dd>${d.nodes.measurements}</dd><dt>Person nodes</dt><dd>${d.nodes.persons}</dd><dt>Subjects</dt><dd>${d.nodes.subjects}</dd>${d.undocumented?.length ? `<dt class="warn">Undocumented keys</dt><dd class="warn">${d.undocumented.map(esc).join(", ")}</dd>` : ""}` : "";
+  const absent = FIELDS.filter(f => !d.fields?.[f]);
+  $("#dprops").innerHTML = (d.staged_properties || []).map(p => `<span>stg:${p}</span>`).join("") + absent.map(f => `<span class="miss" title="empty in the API record">${f}: empty</span>`).join("");
+  $("#draw").textContent = JSON.stringify(r, null, 2);
+  $("#dttl").textContent = d.turtle || "";
+  $("#detailwrap").scrollIntoView({behavior: "smooth", block: "start"});
+}
+
+// ---- coverage ------------------------------------------------------------
+$("#covload").onclick = async () => {
+  $("#covload").textContent = "Computing…";
+  const c = await api("/api/coverage?department=" + encodeURIComponent($("#cdept").value));
+  $("#covload").textContent = "Compute";
+  $("#covinfo").textContent = `${n(c.objects)} objects in ${c.department === "all" ? "all departments" : c.department}`;
+  const tot = c.objects || 1;
+  const undoc = Object.entries(c.undocumented || {});
+  $("#covundoc").innerHTML = undoc.length ? `<span class="dim">Keys served but not documented:</span>` + undoc.map(([k, v]) => `<span class="miss" title="${v} objects">${esc(k)} · ${n(v)}</span>`).join("") : "";
+  const rows = FIELDS.map(f => [f, c.fields[f] || 0]).sort((a, b) => b[1] - a[1]);
+  $("#covfields").innerHTML = rows.map(([f, k]) => `<dt>${f}</dt><dd><div class="bar"><i style="width:${k/tot*100}%"></i></div></dd><dd>${(k/tot*100).toFixed(0)}%</dd>`).join("");
+  $("#covaat").innerHTML = Object.entries(c.aat).map(([f, a]) => `<div><h3>${f}</h3>
+    <p class="note">${n(a.mapped_objects)} of ${n(a.objects)} objects map to AAT (${pct(a.mapped_objects, a.objects)}), ${n(a.distinct)} distinct terms</p>
+    <table><thead><tr><th>Unmapped term</th><th class="n">Objects</th></tr></thead><tbody>${a.unmapped.map(u => `<tr><td>${esc(u.term)}</td><td class="n">${n(u.count)}</td></tr>`).join("") || "<tr><td colspan=2 class='dim'>all mapped</td></tr>"}</tbody></table></div>`).join("");
+};
+$("#matload").onclick = async () => {
+  $("#matload").textContent = "Computing…";
+  const m = await api("/api/coverage/matrix");
+  $("#matload").textContent = "Compute matrix";
+  const shade = v => `rgba(37,84,168,${(0.08 + 0.92 * v).toFixed(2)})`;
+  $("#matrix").innerHTML = `<table class="matrix"><thead><tr><th class="lab"></th>${m.fields.map(f => `<th class="rot"><div>${f}</div></th>`).join("")}</tr></thead><tbody>` +
+    m.departments.map(d => `<tr><td class="lab" title="${n(d.objects)} objects">${esc(d.department)}</td>${d.fill.map((v, i) => `<td style="background:${v ? shade(v) : "var(--absent)"}" title="${esc(d.department)} · ${m.fields[i]} · ${(v*100).toFixed(1)}%"></td>`).join("")}</tr>`).join("") + "</tbody></table>";
+  const a = (d, f) => `${pct(d.aat[f].mapped_objects, d.aat[f].objects)}<br><span class="dim">${n(d.aat[f].distinct)} terms</span>`;
+  $("#mattable tbody").innerHTML = m.departments.map(d => `<tr><td>${esc(d.department)}</td><td class="n">${n(d.objects)}</td><td class="n">${(d.mean_fill*100).toFixed(0)}%</td>
+    <td class="warn" style="max-width:18rem">${d.never_filled.join(", ") || "<span class='dim'>—</span>"}</td><td class="ok" style="max-width:18rem">${d.always_filled.join(", ") || "<span class='dim'>—</span>"}</td>
+    <td class="warn">${d.undocumented.map(esc).join(", ") || "<span class='dim'>—</span>"}</td>
+    <td class="n">${a(d, "culture")}</td><td class="n">${a(d, "objectName")}</td><td class="n">${a(d, "classification")}</td><td class="n">${a(d, "medium")}</td></tr>`).join("");
+};
+
+// ---- live API -------------------------------------------------------------
+const short = v => { const t = JSON.stringify(v); return t && t.length > 80 ? t.slice(0, 77) + "…" : (t ?? "—"); };
+async function liveCompare(id) {
+  if (!id) return;
+  $("#liveid").value = id;
+  document.querySelector('[data-tab="live"]').click();
+  $("#livestatus").textContent = "Fetching…"; $("#liveout").hidden = true;
+  const d = await api("/api/live/" + id);
+  if (d.error) { $("#livestatus").textContent = d.error; $("#livestatus").className = "warn"; return; }
+  $("#livestatus").textContent = `HTTP ${d.status}`; $("#livestatus").className = "ok"; $("#liveout").hidden = false;
+  if (d.cached) {
+    const k = d.cache_diff.length;
+    $("#livecache").textContent = k ? `${k} field${k === 1 ? "" : "s"} differ. Cache metadataDate ${d.cache_metadataDate || "—"}, live ${d.api_metadataDate || "—"}.` : `Identical to the cached record (metadataDate ${d.api_metadataDate || "—"}).`;
+    $("#livediff tbody").innerHTML = d.cache_diff.map(x => `<tr><td>${x.field}</td><td>${esc(short(x.api))}</td><td>${esc(short(x.cached))}</td></tr>`).join("");
+  } else {
+    $("#livecache").textContent = "Not in the cache; nothing to compare. Harvesting it would store this response.";
+    $("#livediff tbody").innerHTML = "";
+  }
+  const unk = d.model_unknown_keys, chg = d.model_changed;
+  $("#livemodelnote").innerHTML = (unk.length ? `<span class="warn">${unk.length} key${unk.length === 1 ? "" : "s"} the model has no field for: ${unk.map(esc).join(", ")}</span>` : "Every API key has a model field.") + (chg.length ? ` ${chg.length} value${chg.length === 1 ? "" : "s"} changed by validation.` : " No values changed by validation.");
+  $("#livemodel tbody").innerHTML = chg.map(x => `<tr><td>${x.field}</td><td>${esc(short(x.api))}</td><td>${esc(short(x.model))}</td></tr>`).join("");
+  $("#liveunstagednote").textContent = d.unstaged.length ? `${d.unstaged.length} filled field${d.unstaged.length === 1 ? "" : "s"} left no trace in the ${d.triples} triples:` : `All filled fields appear in the ${d.triples} staged triples.`;
+  $("#liveunstaged").innerHTML = d.unstaged.map(f => `<span class="miss">${f}</span>`).join("");
+  $("#liveraw").textContent = JSON.stringify(d.api, null, 2);
+  $("#livettl").textContent = d.turtle;
+}
+$("#livego").onclick = () => liveCompare(+$("#liveid").value);
+$("#liveid").onkeydown = e => { if (e.key === "Enter") liveCompare(+$("#liveid").value); };
+
+// ---- perseus -------------------------------------------------------------
+$("#pload").onclick = async () => {
+  const d = await api("/api/perseus?path=" + encodeURIComponent($("#ppath").value));
+  if (d.error) { $("#pstats").innerHTML = `<dt class="warn">Error</dt><dd class="warn">${esc(d.error)}</dd>`; return; }
+  $("#pstats").innerHTML = `<dt>Perseus objects held by the Met</dt><dd>${n(d.perseus_met_objects)}</dd><dt>Matched in cache</dt><dd class="ok">${n(d.matched)}</dd><dt>Unmatched</dt><dd class="${d.unmatched.length ? "warn" : ""}">${n(d.unmatched.length)}</dd>`;
+  $("#pdept tbody").innerHTML = Object.entries(d.by_department).map(([k, v]) => `<tr><td>${esc(k)}</td><td class="n">${n(v)}</td></tr>`).join("") || "<tr><td class='dim'>none</td></tr>";
+  $("#pmatch tbody").innerHTML = d.sample.map(m => `<tr><td>${esc(m.accession)}</td><td><a href="https://www.metmuseum.org/art/collection/search/${m.objectID}" target="_blank" rel="noopener">${m.objectID}</a></td><td class="dim">${esc(m.department)}</td></tr>`).join("");
+  $("#punm").innerHTML = d.unmatched.map(a => `<span class="miss">${esc(a)}</span>`).join("") || "<span>none</span>";
+};
+</script>
+</body>
+</html>
